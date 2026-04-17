@@ -30,16 +30,32 @@ import {
 // ─────────────────────────────────────────────────────────────
 const CFG = {
   paystackPublicKey: "pk_live_a245a899498f4211a486ccb80a79aa5d2931bfb2",
-  amountKobo: 3700000, // ₦37,000 × 100
-  currency: "NGN",
-  priceDisplay: "₦37,000",
-  priceSlash: "₦150,000",
   courseName: "AI-Powered Digital Marketing & Business Growth Masterclass",
   courseStartDate: "April 30, 2026",
   courseStartFull: "Wednesday, 30th April 2026",
   whatsappNumber: "2348138932032",
-  supportEmail: "support@aimasterclass.ng", // update to your real email
+  supportEmail: "support@aimasterclass.ng",
   enrollDeadline: new Date("2026-04-28T23:59:00"),
+
+  // Nigerian pricing
+  NG: {
+    amountKobo: 3700000,
+    currency: "NGN",
+    priceDisplay: "₦37,000",
+    priceSlash: "₦150,000",
+    discount: "61% off",
+    saveLabel: "Save ₦113,000 — 61% off",
+  },
+
+  // International pricing
+  INTL: {
+    amountKobo: 150000,
+    currency: "USD",
+    priceDisplay: "$1,500",
+    priceSlash: "$5,000",
+    discount: "70% off",
+    saveLabel: "Save $3,500 — 70% off",
+  },
 };
 
 const waMsg = (ref, name) =>
@@ -50,6 +66,27 @@ const waMsg = (ref, name) =>
 // ─────────────────────────────────────────────────────────────
 // Hooks
 // ─────────────────────────────────────────────────────────────
+function usePricing() {
+  const [pricing, setPricing] = useState(null);
+
+  useEffect(() => {
+    fetch("https://ipapi.co/json/")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.country_code === "NG") {
+          setPricing(CFG.NG);
+        } else {
+          setPricing(CFG.INTL);
+        }
+      })
+      .catch(() => {
+        setPricing(CFG.NG);
+      });
+  }, []);
+
+  return pricing;
+}
+
 function useCountdown(target) {
   const calc = () => {
     const diff = target - Date.now();
@@ -462,7 +499,7 @@ function FAQItem({ q, a }) {
 // ─────────────────────────────────────────────────────────────
 // Payment / Registration Modal
 // ─────────────────────────────────────────────────────────────
-function PaymentModal({ onClose }) {
+function PaymentModal({ onClose, pricing }) {
   const paystackReady = usePaystack();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -502,14 +539,18 @@ function PaymentModal({ onClose }) {
       setError("Payment system loading — please try again.");
       return;
     }
+    if (!pricing) {
+      setError("Pricing not loaded — please try again.");
+      return;
+    }
     setError("");
     setLoading(true);
 
     const handler = window.PaystackPop.setup({
       key: CFG.paystackPublicKey,
       email: email.trim(),
-      amount: CFG.amountKobo,
-      currency: CFG.currency,
+      amount: pricing.amountKobo,
+      currency: pricing.currency,
       ref: `AIMC-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`,
       metadata: {
         custom_fields: [
@@ -548,7 +589,7 @@ function PaymentModal({ onClose }) {
     });
 
     handler.openIframe();
-  }, [name, email, phone, paystackReady]);
+  }, [name, email, phone, paystackReady, pricing]);
 
   const overlay = {
     position: "fixed",
@@ -598,7 +639,6 @@ function PaymentModal({ onClose }) {
             ✕
           </button>
 
-          {/* Pulsing check */}
           <div style={{ textAlign: "center", marginBottom: 22 }}>
             <div
               style={{
@@ -645,11 +685,10 @@ function PaymentModal({ onClose }) {
                 margin: 0,
               }}
             >
-              Payment of {CFG.priceDisplay} received.
+              Payment of {pricing ? pricing.priceDisplay : ""} received.
             </p>
           </div>
 
-          {/* Course start callout — HERO of the success screen */}
           <div
             style={{
               background:
@@ -683,16 +722,8 @@ function PaymentModal({ onClose }) {
             >
               {CFG.courseStartFull}
             </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.55)",
-                lineHeight: 1.6,
-              }}
-            ></div>
           </div>
 
-          {/* What to expect */}
           <div
             style={{
               background: "rgba(255,255,255,0.03)",
@@ -750,7 +781,6 @@ function PaymentModal({ onClose }) {
             ))}
           </div>
 
-          {/* Payment ref */}
           <div
             style={{
               background: "rgba(255,255,255,0.03)",
@@ -784,7 +814,6 @@ function PaymentModal({ onClose }) {
             </div>
           </div>
 
-          {/* WhatsApp — secondary CTA */}
           <a
             href={waLink}
             target="_blank"
@@ -893,7 +922,6 @@ function PaymentModal({ onClose }) {
           </div>
         </div>
 
-        {/* What they get */}
         <div
           style={{
             background: "rgba(200,245,80,0.05)",
@@ -959,7 +987,7 @@ function PaymentModal({ onClose }) {
               color: "#c8f550",
             }}
           >
-            {CFG.priceDisplay}
+            {pricing ? pricing.priceDisplay : "…"}
           </span>
           <span
             style={{
@@ -968,7 +996,7 @@ function PaymentModal({ onClose }) {
               textDecoration: "line-through",
             }}
           >
-            {CFG.priceSlash}
+            {pricing ? pricing.priceSlash : ""}
           </span>
           <span
             style={{
@@ -980,11 +1008,10 @@ function PaymentModal({ onClose }) {
               fontWeight: 700,
             }}
           >
-            61% off
+            {pricing ? pricing.discount : ""}
           </span>
         </div>
 
-        {/* Form */}
         {[
           {
             label: "Full Name",
@@ -1069,20 +1096,21 @@ function PaymentModal({ onClose }) {
 
         <button
           onClick={launchPaystack}
-          disabled={loading}
+          disabled={loading || !pricing}
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: 10,
-            background: loading ? "rgba(200,245,80,0.5)" : "#c8f550",
+            background:
+              loading || !pricing ? "rgba(200,245,80,0.5)" : "#c8f550",
             color: "#080c14",
             fontWeight: 800,
             fontSize: 16,
             padding: "16px",
             borderRadius: 12,
             border: "none",
-            cursor: loading ? "not-allowed" : "pointer",
+            cursor: loading || !pricing ? "not-allowed" : "pointer",
             width: "100%",
             fontFamily: "inherit",
             transition: "all 0.2s",
@@ -1094,7 +1122,8 @@ function PaymentModal({ onClose }) {
             </>
           ) : (
             <>
-              <CreditCard size={19} /> Register & Pay {CFG.priceDisplay}
+              <CreditCard size={19} /> Register & Pay{" "}
+              {pricing ? pricing.priceDisplay : "…"}
             </>
           )}
         </button>
@@ -1158,6 +1187,7 @@ export default function LandingPage() {
   const { d, h, m, s } = useCountdown(CFG.enrollDeadline);
   const [activeModule, setActiveModule] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const pricing = usePricing();
 
   const S = {
     page: {
@@ -1166,6 +1196,8 @@ export default function LandingPage() {
       color: "#f8fafc",
       minHeight: "100vh",
       overflowX: "hidden",
+      margin: 0,
+      padding: 0,
     },
     wrap: { maxWidth: 1080, margin: "0 auto", padding: "0 24px" },
     sec: { padding: "78px 0" },
@@ -1216,7 +1248,7 @@ export default function LandingPage() {
     },
   };
 
-  const open = () => setShowModal(true);
+  const open = () => pricing && setShowModal(true);
   const hoverBtn = (e) => {
     e.currentTarget.style.transform = "scale(1.03)";
     e.currentTarget.style.boxShadow = "0 12px 40px rgba(200,245,80,0.36)";
@@ -1226,13 +1258,24 @@ export default function LandingPage() {
     e.currentTarget.style.boxShadow = "0 8px 28px rgba(200,245,80,0.22)";
   };
 
+  const priceLabel = pricing ? pricing.priceDisplay : "…";
+
   return (
     <div style={S.page}>
+      {/* Global reset to remove any browser default body margin/border */}
+      <style>{`
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: #080c14; border: none; outline: none; }
+        #root { margin: 0; padding: 0; border: none; }
+        @keyframes aimcPulse { 0%,100%{box-shadow:0 0 0 0 rgba(200,245,80,0.3)} 50%{box-shadow:0 0 0 14px rgba(200,245,80,0)} }
+      `}</style>
       <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=DM+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet"
       />
-      {showModal && <PaymentModal onClose={() => setShowModal(false)} />}
+      {showModal && pricing && (
+        <PaymentModal onClose={() => setShowModal(false)} pricing={pricing} />
+      )}
 
       {/* ── NAV ─────────────────────────────────────────────── */}
       <nav
@@ -1266,11 +1309,15 @@ export default function LandingPage() {
           </div>
           <button
             onClick={open}
-            style={S.btn}
+            style={{
+              ...S.btn,
+              opacity: pricing ? 1 : 0.6,
+              cursor: pricing ? "pointer" : "default",
+            }}
             onMouseEnter={hoverBtn}
             onMouseLeave={leaveBtn}
           >
-            Register Now — {CFG.priceDisplay}
+            Register Now — {priceLabel}
           </button>
         </div>
       </nav>
@@ -1297,7 +1344,6 @@ export default function LandingPage() {
           }}
         />
         <div style={{ ...S.wrap, textAlign: "center", position: "relative" }}>
-          {/* Course start badge */}
           <div
             style={{
               display: "inline-flex",
@@ -1473,7 +1519,7 @@ export default function LandingPage() {
                 icon: CreditCard,
                 color: "#c8f550",
                 title: "Register & Pay",
-                body: `Fill in your details and pay ${CFG.priceDisplay} securely via Paystack — card, bank transfer, or USSD.`,
+                body: `Fill in your details and pay ${priceLabel} securely via Paystack — card, bank transfer, or USSD.`,
               },
               {
                 step: "02",
@@ -2029,7 +2075,7 @@ export default function LandingPage() {
                     lineHeight: 1,
                   }}
                 >
-                  {CFG.priceDisplay}
+                  {priceLabel}
                 </div>
                 <div
                   style={{
@@ -2039,7 +2085,7 @@ export default function LandingPage() {
                     marginTop: 3,
                   }}
                 >
-                  {CFG.priceSlash}
+                  {pricing ? pricing.priceSlash : ""}
                 </div>
                 <div
                   style={{
@@ -2053,7 +2099,7 @@ export default function LandingPage() {
                     marginTop: 7,
                   }}
                 >
-                  Save ₦153,000 — 61% off
+                  {pricing ? pricing.saveLabel : ""}
                 </div>
               </div>
 
@@ -2098,11 +2144,12 @@ export default function LandingPage() {
                   fontSize: 17,
                   padding: "18px",
                   boxSizing: "border-box",
+                  opacity: pricing ? 1 : 0.6,
                 }}
                 onMouseEnter={hoverBtn}
                 onMouseLeave={leaveBtn}
               >
-                <CreditCard size={19} /> Register Now — {CFG.priceDisplay}
+                <CreditCard size={19} /> Register Now — {priceLabel}
               </button>
 
               <div
@@ -2216,7 +2263,7 @@ export default function LandingPage() {
               onMouseEnter={hoverBtn}
               onMouseLeave={leaveBtn}
             >
-              Register Now — {CFG.priceDisplay} <ArrowRight size={18} />
+              Register Now — {priceLabel} <ArrowRight size={18} />
             </button>
           </Reveal>
         </div>
@@ -2228,6 +2275,7 @@ export default function LandingPage() {
           borderTop: "1px solid rgba(255,255,255,0.05)",
           padding: "34px 24px",
           textAlign: "center",
+          background: "#080c14",
         }}
       >
         <div
@@ -2249,7 +2297,7 @@ export default function LandingPage() {
           }}
         >
           AI-Powered Digital Marketing & Business Growth Masterclass — Starts
-          April 30, 2025
+          April 30, 2026
         </p>
         <div
           style={{
@@ -2282,7 +2330,7 @@ export default function LandingPage() {
             marginTop: 16,
           }}
         >
-          © 2025 AI Marketing Masterclass. All rights reserved.
+          © 2026 AI Marketing Masterclass. All rights reserved.
         </p>
       </footer>
     </div>
