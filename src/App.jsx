@@ -70,10 +70,10 @@ function usePricing() {
   const [pricing, setPricing] = useState(null);
 
   useEffect(() => {
-    fetch("https://ipapi.co/json/")
+    fetch("http://ip-api.com/json/")
       .then((r) => r.json())
       .then((data) => {
-        if (data.country_code === "NG") {
+        if (data.countryCode === "NG") {
           setPricing(CFG.NG);
         } else {
           setPricing(CFG.INTL);
